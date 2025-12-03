@@ -267,6 +267,38 @@
             font-weight: 600;
             color: var(--mm-gray-600);
             margin: 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .task-title:hover {
+            color: var(--mm-primary);
+        }
+
+        .task-description {
+            font-size: 12px;
+            color: var(--mm-gray-400);
+            margin-top: 8px;
+            padding: 12px;
+            background: var(--mm-gray-20);
+            border-radius: 4px;
+            line-height: 1.6;
+            display: none;
+        }
+
+        .task-description.expanded {
+            display: block;
+        }
+
+        .task-expand-icon {
+            display: inline-block;
+            margin-right: 6px;
+            transition: transform 0.2s;
+            font-size: 10px;
+        }
+
+        .task-expand-icon.expanded {
+            transform: rotate(90deg);
         }
 
         .task-counter {
@@ -836,6 +868,15 @@
             render();
         }
 
+        // ============ TASK DESCRIPTION TOGGLE ============
+        function toggleTaskDescription(event, taskId) {
+            const descElement = document.getElementById(`description-${taskId}`);
+            const iconElement = event.target.querySelector('.task-expand-icon');
+            
+            descElement.classList.toggle('expanded');
+            iconElement.classList.toggle('expanded');
+        }
+
         // ============ RENDER ============
         function render() {
             const container = document.getElementById('tasksContainer');
@@ -885,7 +926,12 @@
                     <div class="task-header">
                         <div class="task-title-section">
                             <div class="task-id">${taskId}</div>
-                            <p class="task-title">${task.title}</p>
+                            <p class="task-title" onclick="toggleTaskDescription(event, '${taskId}')">
+                                <span class="task-expand-icon">▶</span>${task.title}
+                            </p>
+                            <div class="task-description" id="description-${taskId}">
+                                <strong>📋 Описание:</strong><br>${task.description}
+                            </div>
                         </div>
                         <div class="task-counter">${estimateCount}/${participantCount} оценили</div>
                     </div>
