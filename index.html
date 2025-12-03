@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mattermost Planning Poker Bot</title>
+    <style>
+        :root {
+            --mm-gray-10: #ffffff;
+            --mm-gray-20: #f8f8f8;
+            --mm-gray-100: #e0e0e0;
+            --mm-gray-400: #777777;
+            --mm-gray-600: #444444;
+            --mm-primary: #0066cc;
+            --mm-primary-hover: #0052a3;
+            --mm-success: #31a24c;
+            --mm-warning: #ff6b6b;
+            --mm-border: #dddddd;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #fafafa;
+            color: var(--mm-gray-600);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--mm-border);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--mm-gray-600);
+        }
+
+        .header p {
+            margin: 8px 0 0 0;
+            font-size: 12px;
+            color: var(--mm-gray-400);
+        }
+
+        /* Chat Thread */
+        .thread-container {
+            background: white;
+            border: 1px solid var(--mm-border);
+            border-radius: 4px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .thread-header {
+            background: var(--mm-gray-20);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--mm-border);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--mm-gray-600);
+        }
+
+        .thread-content {
+            padding: 16px;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--mm-gray-20);
+            border-radius: 4px;
+            border-left: 3px solid var(--mm-primary);
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+
+        .message-author {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--mm-gray-600);
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: var(--mm-gray-400);
+        }
+
+        .message-role {
+            display: inline-block;
+            background: var(--mm-primary);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        .message-text {
+            font-size: 13px;
+            color: var(--mm-gray-600);
+            margin: 0;
+        }
+
+        /* Input Area */
+        .input-area {
+            background: white;
+            padding: 16px;
+            border-top: 1px solid var(--mm-border);
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--mm-gray-600);
+        }
+
+        .input-command {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-command input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid var(--mm-border);
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .input-command input:focus {
+            outline: none;
+            border-color: var(--mm-primary);
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            background: var(--mm-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--mm-primary-hover);
+        }
+
+        .btn:disabled {
+            background: var(--mm-gray-100);
+            color: var(--mm-gray-400);
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--mm-gray-100);
+            color: var(--mm-gray-600);
+        }
+
+        .btn-secondary:hover {
+            background: var(--mm-border);
+        }
+
+        .btn-danger {
+            background: var(--mm-warning);
+        }
+
+        .btn-danger:hover {
+            background: #ff5252;
+        }
+
+        .btn-success {
+            background: var(--mm-success);
+        }
+
+        .btn-success:hover {
+            background: #289c41;
+        }
+
+        /* Task Cards */
+        .task-card {
+            background: white;
+            border: 1px solid var(--mm-border);
+            border-radius: 4px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+        }
+
+        .task-card:hover {
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-header {
+            background: var(--mm-gray-20);
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--mm-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 12px;
+        }
+
+        .task-title-section {
+            flex: 1;
+        }
+
+        .task-id {
+            display: inline-block;
+            background: var(--mm-primary);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-decoration: none;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+
+        .task-id:hover {
+            background: var(--mm-primary-hover);
+        }
+
+        .task-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--mm-gray-600);
+            margin: 0;
+        }
+
+        .task-counter {
+            background: var(--mm-border);
+            padding: 6px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--mm-gray-600);
+            white-space: nowrap;
+        }
+
+        .task-body {
+            padding: 16px;
+        }
+
+        /* Participants List */
+        .participants-list {
+            margin-bottom: 16px;
+        }
+
+        .participant-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--mm-border);
+            font-size: 12px;
+        }
+
+        .participant-item:last-child {
+            border-bottom: none;
+        }
+
+        .participant-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .participant-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--mm-primary), #0052a3);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .participant-score {
+            font-weight: 600;
+            color: var(--mm-primary);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .participant-score.hidden {
+            color: var(--mm-gray-400);
+        }
+
+        .participant-hidden {
+            font-style: italic;
+            color: var(--mm-gray-400);
+        }
+
+        /* Estimate Input */
+        .estimate-input-section {
+            margin: 16px 0;
+            padding-top: 16px;
+            border-top: 1px solid var(--mm-border);
+        }
+
+        .estimate-input-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--mm-gray-600);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .estimate-input-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .estimate-input-controls input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--mm-border);
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .estimate-input-controls input:focus {
+            outline: none;
+            border-color: var(--mm-primary);
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+        }
+
+        .estimate-format-hint {
+            font-size: 11px;
+            color: var(--mm-gray-400);
+            margin-top: 4px;
+        }
+
+        /* Button Group */
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .button-group-section {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Status Messages */
+        .status-message {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            font-size: 12px;
+            border-left: 3px solid;
+        }
+
+        .status-info {
+            background: #ecf0f7;
+            border-left-color: var(--mm-primary);
+            color: #0052a3;
+        }
+
+        .status-success {
+            background: #ecf8f1;
+            border-left-color: var(--mm-success);
+            color: #1e7e34;
+        }
+
+        .status-error {
+            background: #fef1f1;
+            border-left-color: var(--mm-warning);
+            color: #ae2a2a;
+        }
+
+        .status-warning {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+            color: #92400e;
+        }
+
+        /* Poll Controls */
+        .poll-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--mm-border);
+        }
+
+        .poll-controls-rp {
+            background: var(--mm-gray-20);
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 16px;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 4px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--mm-gray-600);
+            margin: 0 0 12px 0;
+        }
+
+        .modal-text {
+            font-size: 13px;
+            color: var(--mm-gray-400);
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+
+            .task-header {
+                flex-direction: column;
+            }
+
+            .estimate-input-controls {
+                flex-direction: column;
+            }
+
+            .button-group {
+                justify-content: flex-start;
+            }
+
+            .button-group .btn {
+                flex: 1;
+                min-width: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>💬 Mattermost Planning Poker Bot</h1>
+            <p>Командная оценка трудоёмкости задач с независимыми скрытыми оценками</p>
+        </div>
+
+        <!-- Chat Thread -->
+        <div class="thread-container">
+            <div class="thread-header">🧵 Основной чат</div>
+            <div class="thread-content">
+                <div class="message">
+                    <div class="message-header">
+                        <span class="message-author">Романов Р.Р.</span>
+                        <span class="message-role">РП</span>
+                        <span class="message-time">сегодня 10:23</span>
+                    </div>
+                    <p class="message-text">Начинаем оценку задач для спринта. Ребята, даём независимые оценки!</p>
+                </div>
+
+                <!-- Threaded Bot Response -->
+                <div style="background: var(--mm-gray-20); padding: 16px; border-radius: 4px; border-left: 3px solid var(--mm-success);">
+                    <div class="message-header">
+                        <span class="message-author">🤖 Planning Poker Bot</span>
+                        <span class="message-time">в ответе на сообщение выше</span>
+                    </div>
+                    <p class="message-text" style="color: var(--mm-success); margin: 8px 0;">✓ Загружены 3 задачи для оценки</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Panel for RP -->
+        <div class="status-message status-info">
+            <strong>ℹ️ Текущий пользователь:</strong> Романов Р.Р. (РП) · Вы видите ВСЕ оценки участников (даже скрытые для них)
+        </div>
+
+        <!-- Task Cards -->
+        <div id="tasksContainer"></div>
+
+        <!-- Modal for Confirmations -->
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3 class="modal-title" id="modalTitle">Подтверждение</h3>
+                <p class="modal-text" id="modalText"></p>
+                <div class="modal-buttons">
+                    <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                    <button class="btn btn-danger" onclick="confirmAction()">Удалить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ STATE MANAGEMENT ============
+        const state = {
+            currentUser: 'rp', // Меняется на 'user1', 'user2', 'user3', 'user4'
+            currentUserName: 'Романов Р.Р.',
+            isRP: true,
+            roundNumber: 0,
+            tasks: {
+                'ABC-123': {
+                    title: 'Реализовать API для загрузки задач',
+                    description: 'Создать REST эндпоинт для получения списка задач из хранилища и их актуальной информации',
+                    estimates: {
+                        'user1': null,
+                        'user2': null,
+                        'user3': null,
+                        'user4': null
+                    },
+                    estimatesInHours: {},
+                    status: 'voting',
+                    youtrackValue: null
+                },
+                'ABC-124': {
+                    title: 'Добавить аутентификацию',
+                    description: 'Интегрировать OAuth2 для безопасного входа пользователей',
+                    estimates: {
+                        'user1': null,
+                        'user2': null,
+                        'user3': null,
+                        'user4': null
+                    },
+                    estimatesInHours: {},
+                    status: 'voting',
+                    youtrackValue: null
+                },
+                'ABC-125': {
+                    title: 'Настроить базу данных',
+                    description: 'Развернуть PostgreSQL и настроить миграции схемы',
+                    estimates: {
+                        'user1': null,
+                        'user2': null,
+                        'user3': null,
+                        'user4': null
+                    },
+                    estimatesInHours: {},
+                    status: 'voting',
+                    youtrackValue: null
+                }
+            },
+            participants: [
+                { id: 'user1', name: 'Иванов И.И.', avatar: 'ИИ' },
+                { id: 'user2', name: 'Петров А.А.', avatar: 'ПА' },
+                { id: 'user3', name: 'Сидоров С.С.', avatar: 'СС' },
+                { id: 'user4', name: 'Кузнецов К.К.', avatar: 'КК' }
+            ],
+            pendingAction: null,
+            messages: []
+        };
+
+        // ============ UTILITY FUNCTIONS ============
+        function convertToHours(estimateStr) {
+            const trimmed = estimateStr.toLowerCase().trim();
+            const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([чдh])?$/);
+            
+            if (!match) return null;
+            
+            const value = parseFloat(match[1]);
+            const unit = match[2] || 'ч';
+            
+            if (unit === 'д' || unit === 'day') return value * 8;
+            return value;
+        }
+
+        function formatHours(hours) {
+            if (hours >= 8 && hours % 8 === 0) {
+                return `${hours / 8}д`;
+            }
+            return `${hours}ч`;
+        }
+
+        function getInitials(name) {
+            return name.split(' ').map(n => n[0]).join('');
+        }
+
+        function addMessage(type, text) {
+            state.messages.push({
+                type: type, // 'info', 'success', 'error', 'warning'
+                text: text,
+                timestamp: new Date().toLocaleTimeString('ru-RU')
+            });
+        }
+
+        // ============ ESTIMATE MANAGEMENT ============
+        function submitEstimate(taskId) {
+            const inputElement = document.getElementById(`estimate-input-${taskId}`);
+            const estimateStr = inputElement.value.trim();
+
+            if (!estimateStr) {
+                addMessage('error', `❌ Введите оценку для задачи ${taskId}`);
+                render();
+                return;
+            }
+
+            const hours = convertToHours(estimateStr);
+            if (hours === null) {
+                addMessage('error', `❌ Некорректный формат оценки "${estimateStr}". Используйте: "8ч" или "1д"`);
+                render();
+                return;
+            }
+
+            if (hours <= 0) {
+                addMessage('error', `❌ Оценка должна быть больше 0`);
+                render();
+                return;
+            }
+
+            state.tasks[taskId].estimates[state.currentUser] = estimateStr;
+            state.tasks[taskId].estimatesInHours[state.currentUser] = hours;
+            inputElement.value = '';
+
+            addMessage('success', `✓ ${state.currentUserName} оценил(а) ${taskId}: ${formatHours(hours)}`);
+            render();
+        }
+
+        function deleteOwnEstimate(taskId) {
+            if (state.tasks[taskId].estimates[state.currentUser] === null) {
+                addMessage('error', `❌ Вы не оставляли оценку для ${taskId}`);
+                render();
+                return;
+            }
+
+            state.tasks[taskId].estimates[state.currentUser] = null;
+            delete state.tasks[taskId].estimatesInHours[state.currentUser];
+
+            addMessage('info', `ℹ️ ${state.currentUserName} удалил(а) свою оценку для ${taskId}`);
+            render();
+        }
+
+        function deleteParticipantEstimate(taskId, userId) {
+            if (!state.isRP) {
+                addMessage('error', `❌ Только РП может удалять оценки других`);
+                render();
+                return;
+            }
+
+            if (state.tasks[taskId].estimates[userId] === null) {
+                addMessage('error', `❌ У этого участника нет оценки`);
+                render();
+                return;
+            }
+
+            const userName = state.participants.find(p => p.id === userId).name;
+            state.tasks[taskId].estimates[userId] = null;
+            delete state.tasks[taskId].estimatesInHours[userId];
+
+            addMessage('warning', `⚠️ РП удалил(а) оценку ${userName} для ${taskId}`);
+            render();
+        }
+
+        // ============ POLLING LOGIC ============
+        function getEstimateCount(taskId) {
+            return Object.values(state.tasks[taskId].estimates).filter(e => e !== null).length;
+        }
+
+        function finishPoll(taskId) {
+            if (!state.isRP) {
+                addMessage('error', `❌ Только РП может завершить опрос`);
+                render();
+                return;
+            }
+
+            const task = state.tasks[taskId];
+            const estimates = Object.values(task.estimatesInHours);
+
+            if (estimates.length === 0) {
+                addMessage('error', `❌ Никто не оценил задачу ${taskId}`);
+                render();
+                return;
+            }
+
+            const minEst = Math.min(...estimates);
+            const maxEst = Math.max(...estimates);
+            const ratio = maxEst / minEst;
+
+            if (ratio > 2) {
+                addMessage('warning', `⚠️ Оценки разошлись! ${taskId}: от ${formatHours(minEst)} до ${formatHours(maxEst)} (разброс ${ratio.toFixed(1)}x). Обсудите и переголосуйте.`);
+                
+                // Сброс оценок
+                Object.keys(task.estimates).forEach(userId => {
+                    task.estimates[userId] = null;
+                });
+                task.estimatesInHours = {};
+                state.roundNumber++;
+
+                render();
+                return;
+            }
+
+            // Записываем результат
+            const avgHours = estimates.reduce((a, b) => a + b, 0) / estimates.length;
+            task.youtrackValue = formatHours(Math.round(avgHours));
+            task.status = 'completed';
+
+            addMessage('success', `✅ ${taskId} оценена: ${task.youtrackValue} (среднее из ${estimates.map(e => formatHours(e)).join(', ')}). Записано в YouTrack.`);
+            render();
+        }
+
+        function resetPoll(taskId) {
+            if (!state.isRP) {
+                addMessage('error', `❌ Только РП может сбросить опрос`);
+                render();
+                return;
+            }
+
+            state.tasks[taskId].estimates = Object.fromEntries(
+                state.participants.map(p => [p.id, null])
+            );
+            state.tasks[taskId].estimatesInHours = {};
+            state.tasks[taskId].status = 'voting';
+            state.roundNumber++;
+
+            addMessage('info', `ℹ️ ${taskId}: опрос сброшен, начинается новый раунд`);
+            render();
+        }
+
+        // ============ MODAL MANAGEMENT ============
+        function openDeletePollModal(taskId) {
+            if (!state.isRP) return;
+
+            state.pendingAction = { action: 'deletePoll', taskId };
+            document.getElementById('modalTitle').textContent = 'Удалить опрос?';
+            document.getElementById('modalText').textContent = 
+                `Вы уверены? Все оценки для задачи ${taskId} будут потеряны и не будут записаны в YouTrack.`;
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('active');
+            state.pendingAction = null;
+        }
+
+        function confirmAction() {
+            if (!state.pendingAction) return;
+
+            if (state.pendingAction.action === 'deletePoll') {
+                const taskId = state.pendingAction.taskId;
+                state.tasks[taskId].estimates = Object.fromEntries(
+                    state.participants.map(p => [p.id, null])
+                );
+                state.tasks[taskId].estimatesInHours = {};
+                state.tasks[taskId].status = 'voting';
+                state.tasks[taskId].youtrackValue = null;
+
+                addMessage('warning', `⚠️ ${taskId}: опрос удалён, оценка не записана`);
+            }
+
+            closeModal();
+            render();
+        }
+
+        // ============ USER SWITCHING ============
+        function switchUser(userId) {
+            state.currentUser = userId;
+            state.isRP = userId === 'rp';
+            const user = userId === 'rp' 
+                ? { name: 'Романов Р.Р. (РП)' }
+                : state.participants.find(p => p.id === userId);
+            state.currentUserName = user.name;
+            addMessage('info', `👤 Переключились на пользователя: ${user.name}`);
+            render();
+        }
+
+        // ============ RENDER ============
+        function render() {
+            const container = document.getElementById('tasksContainer');
+            container.innerHTML = '';
+
+            // Render messages if any
+            if (state.messages.length > 0) {
+                const lastMsg = state.messages[state.messages.length - 1];
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `status-message status-${lastMsg.type}`;
+                msgDiv.textContent = lastMsg.text;
+                container.appendChild(msgDiv);
+            }
+
+            // User Switcher
+            const switcherDiv = document.createElement('div');
+            switcherDiv.style.cssText = 'margin-bottom: 20px; padding: 12px; background: var(--mm-gray-20); border-radius: 4px;';
+            switcherDiv.innerHTML = '<strong>👥 Тестирование (переключение пользователей):</strong><br>';
+            
+            const rpBtn = document.createElement('button');
+            rpBtn.className = `btn ${state.currentUser === 'rp' ? '' : 'btn-secondary'}`;
+            rpBtn.textContent = 'РП: Романов';
+            rpBtn.onclick = () => switchUser('rp');
+            rpBtn.style.marginRight = '8px';
+            switcherDiv.appendChild(rpBtn);
+
+            state.participants.forEach(p => {
+                const btn = document.createElement('button');
+                btn.className = `btn ${state.currentUser === p.id ? '' : 'btn-secondary'}`;
+                btn.textContent = p.name.split(' ')[0];
+                btn.onclick = () => switchUser(p.id);
+                btn.style.marginRight = '8px';
+                switcherDiv.appendChild(btn);
+            });
+
+            container.appendChild(switcherDiv);
+
+            // Render task cards
+            Object.entries(state.tasks).forEach(([taskId, task]) => {
+                const card = document.createElement('div');
+                card.className = 'task-card';
+
+                const estimateCount = getEstimateCount(taskId);
+                const participantCount = state.participants.length;
+
+                card.innerHTML = `
+                    <div class="task-header">
+                        <div class="task-title-section">
+                            <div class="task-id">${taskId}</div>
+                            <p class="task-title">${task.title}</p>
+                        </div>
+                        <div class="task-counter">${estimateCount}/${participantCount} оценили</div>
+                    </div>
+                    <div class="task-body">
+                        <!-- Participants with estimates -->
+                        <div class="participants-list">
+                            ${state.participants.map(p => {
+                                const estimate = task.estimates[p.id];
+                                const isCurrentUser = p.id === state.currentUser;
+                                const isHidden = estimate !== null && !state.isRP && !isCurrentUser;
+                                
+                                let scoreDisplay = '?';
+                                let scoreClass = 'hidden';
+                                
+                                if (estimate === null) {
+                                    scoreDisplay = '?';
+                                    scoreClass = 'hidden';
+                                } else if (isHidden) {
+                                    scoreDisplay = '?';
+                                    scoreClass = 'hidden';
+                                } else if (state.isRP || isCurrentUser) {
+                                    scoreDisplay = estimate;
+                                    scoreClass = '';
+                                }
+
+                                let actionButtons = '';
+                                if (isCurrentUser && estimate !== null && task.status === 'voting') {
+                                    actionButtons = `<button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="deleteOwnEstimate('${taskId}')">✕ Удалить</button>`;
+                                } else if (state.isRP && estimate !== null) {
+                                    actionButtons = `<button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="deleteParticipantEstimate('${taskId}', '${p.id}')">✕ Удалить</button>`;
+                                }
+
+                                return `
+                                    <div class="participant-item">
+                                        <div class="participant-name">
+                                            <div class="participant-avatar">${p.avatar}</div>
+                                            <span>${p.name}</span>
+                                        </div>
+                                        <div style="display: flex; gap: 8px; align-items: center;">
+                                            <div class="participant-score ${scoreClass}">${scoreDisplay}</div>
+                                            ${actionButtons}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+
+                        <!-- Estimate Input for current user (if not voted or can change) -->
+                        ${task.status === 'voting' ? `
+                            <div class="estimate-input-section">
+                                <label class="estimate-input-label">Ваша оценка:</label>
+                                <div class="estimate-input-controls">
+                                    <input type="text" id="estimate-input-${taskId}" placeholder="8ч или 1д" />
+                                    <button class="btn" onclick="submitEstimate('${taskId}')">Голос</button>
+                                </div>
+                                <div class="estimate-format-hint">Формат: количество часов (8ч) или дней (1д)</div>
+                            </div>
+                        ` : ''}
+
+                        <!-- Status or YouTrack Result -->
+                        ${task.status === 'completed' ? `
+                            <div class="status-message status-success" style="margin-top: 16px;">
+                                <strong>✅ Завершено:</strong> ${task.youtrackValue} → записано в YouTrack
+                            </div>
+                        ` : ''}
+
+                        <!-- Poll Controls for RP -->
+                        ${task.status === 'voting' ? `
+                            <div class="poll-controls-rp" style="display: ${state.isRP ? 'block' : 'none'}">
+                                <strong>🎮 Управление опросом (РП):</strong>
+                                <div class="button-group" style="margin-top: 8px;">
+                                    <button class="btn btn-success" onclick="finishPoll('${taskId}')">✓ Завершить опрос</button>
+                                    <button class="btn btn-secondary" onclick="resetPoll('${taskId}')">↻ Сбросить оценки</button>
+                                    <button class="btn btn-danger" onclick="openDeletePollModal('${taskId}')">🗑 Удалить опрос</button>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        // Initial render
+        render();
+    </script>
+</body>
+</html>
